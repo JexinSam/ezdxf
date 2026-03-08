@@ -50,10 +50,19 @@ class _LineTypeRenderer:
         segment_length = segment_vec.magnitude
         segment_dir = segment_vec / segment_length  # normalize
 
+        segment_limit = 10000
+        segment_count = 0
+
         for is_dash, dash_length in self._render_dashes(segment_length):
+            if segment_count > segment_limit:
+                # Fallback to solid line for the remainder if pattern is too dense
+                yield _start, end
+                break
+
             _end = _start + segment_dir * dash_length
             if is_dash:
                 yield _start, _end
+                segment_count += 1
             _start = _end
 
     def _render_dashes(self, length: float) -> Iterable[tuple[bool, float]]:

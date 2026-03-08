@@ -565,6 +565,9 @@ class UniversalFrontend:
                 return True
             return False
 
+        dash_count = 0
+        dash_limit = 100_000
+
         for baseline in hatching.pattern_baselines(
             polygon,
             min_hatch_line_distance=self.config.min_hatch_line_distance,
@@ -572,6 +575,8 @@ class UniversalFrontend:
         ):
             for line in hatching.hatch_paths(baseline, paths, timeout):
                 line_pattern = baseline.pattern_renderer(line.distance)
+                # Let the generator run - if DenseHatchingLinesError is raised
+                # it will propagate up to draw_hatch_entity which catches it!
                 for s, e in line_pattern.render(line.start, line.end):
                     if ocs.transform:
                         s, e = (
@@ -579,6 +584,10 @@ class UniversalFrontend:
                             ocs.to_wcs((e.x, e.y, elevation)),
                         )
                     lines.append((s, e))
+                    dash_count += 1
+                    if dash_count > dash_limit:
+                        raise hatching.DenseHatchingLinesError("hatch pattern too dense")
+                        
         self.pipeline.draw_solid_lines(lines, properties)
 
     def draw_hatch_entity(
