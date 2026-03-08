@@ -568,7 +568,19 @@ class LinetypeStage2d(RenderStage2d):
         self.next_stage = next_stage
         self.get_ltype_scale = get_ltype_scale
         self.pattern_cache: dict[PatternKey, Sequence[float]] = dict()
+        self._dash_count = 0
+        self._entity_level = 0
         self.set_config(config)
+
+    def enter_entity(self, entity, properties) -> None:
+        self._entity_level += 1
+        if self._entity_level == 1:
+            self._dash_count = 0
+        self.next_stage.enter_entity(entity, properties)
+
+    def exit_entity(self, entity) -> None:
+        self._entity_level -= 1
+        self.next_stage.exit_entity(entity)
 
     def set_config(self, config: Configuration) -> None:
         self.config = config
@@ -595,6 +607,13 @@ class LinetypeStage2d(RenderStage2d):
 
         min_dash_length = self.config.min_dash_length * self.get_ltype_scale()
         pattern = [max(e * scale, min_dash_length) for e in properties.linetype_pattern]
+        
+        # If the total pattern length is microscopic, rendering it as dashes
+        # will generate millions of segments. Fallback to continuous/solid line.
+        total_pattern_length = sum(abs(p) for p in pattern)
+        if total_pattern_length < (self.config.min_dash_length * 20):
+            return tuple()
+            
         if len(pattern) % 2:
             pattern.pop()
         return pattern
@@ -607,13 +626,21 @@ class LinetypeStage2d(RenderStage2d):
         e = Vec2(end)
         next_stage = self.next_stage
 
-        if self.solid_lines_only or len(properties.linetype_pattern) < 2:  # CONTINUOUS
+        if self.solid_lines_only or len(properties.linetype_pattern) < 2 or self._dash_count > 100000:  # CONTINUOUS
             next_stage.draw_line(s, e, properties)
             return
 
-        renderer = linetypes.LineTypeRenderer(self.pattern(properties))
+        pattern = self.pattern(properties)
+        total_pattern_length = sum(pattern)
+        if total_pattern_length > 0 and (s.distance(e) / total_pattern_length) > 10000:
+            next_stage.draw_line(s, e, properties)
+            return
+
+        renderer = linetypes.LineTypeRenderer(pattern)
+        segments = [(s, e) for s, e in renderer.line_segment(s, e)]
+        self._dash_count += len(segments)
         next_stage.draw_solid_lines(
-            [(s, e) for s, e in renderer.line_segment(s, e)],
+            segments,
             properties,
         )
 
@@ -625,14 +652,28 @@ class LinetypeStage2d(RenderStage2d):
     def draw_path(self, path: BkPath2d, properties: Properties):
         next_stage = self.next_stage
 
-        if self.solid_lines_only or len(properties.linetype_pattern) < 2:  # CONTINUOUS
+        if self.solid_lines_only or len(properties.linetype_pattern) < 2 or self._dash_count > 100000:  # CONTINUOUS
             next_stage.draw_path(path, properties)
             return
 
-        renderer = linetypes.LineTypeRenderer(self.pattern(properties))
+        pattern = self.pattern(properties)
+        total_pattern_length = sum(pattern)
+        
+        # Approximate path length by its bounding box or just fallback on first check.
+        # Computing the exact length is expensive, let's use the bounding box diagonal.
+        bbox = BoundingBox2d(path.control_vertices())
+        if bbox.has_data and total_pattern_length > 0:
+            diag = bbox.extmax.distance(bbox.extmin)
+            if (diag / total_pattern_length) > 10000:
+                next_stage.draw_path(path, properties)
+                return
+
+        renderer = linetypes.LineTypeRenderer(pattern)
         vertices = path.flattening(self.config.max_flattening_distance, segments=16)
+        segments = [(Vec2(s), Vec2(e)) for s, e in renderer.line_segments(vertices)]
+        self._dash_count += len(segments)
         next_stage.draw_solid_lines(
-            [(Vec2(s), Vec2(e)) for s, e in renderer.line_segments(vertices)],
+            segments,
             properties,
         )
 

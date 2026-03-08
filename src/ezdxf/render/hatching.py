@@ -214,6 +214,9 @@ class PatternRenderer:
         e_dist = direction.dot(end - origin)
         s_index, s_offset = divmod(s_dist, length)
         e_index, e_offset = divmod(e_dist, length)
+        
+        if (e_index - s_index) > 2000:
+            raise DenseHatchingLinesError("hatch pattern too dense")
 
         if s_index == e_index:
             yield from self.render_offset_to_offset(s_index, s_offset, e_offset)
