@@ -99,6 +99,9 @@ def virtual_entities(leader: Leader) -> Iterator[DXFGraphic]:
         if arrow_name is None:
             return
         size = override.get("dimasz", 2.5 if measurement else 0.1875) * dimscale
+        first_segment_length = vertices[0].distance(vertices[1])
+        if first_segment_length < size:
+            return  # AutoCAD suppresses arrowheads if they are larger than the first segment
         rotation = (vertices[0] - vertices[1]).angle_deg
         if doc and arrow_name in doc.blocks:
             dxfattribs.update(
