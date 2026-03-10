@@ -280,11 +280,19 @@ def plain_text(text: str) -> str:
     """Returns the plain text for :class:`~ezdxf.entities.Text`,
     :class:`~ezdxf.entities.Attrib` and :class:`~ezdxf.entities.Attdef` content.
     """
+    from ezdxf.lldxf.encoding import has_dxf_unicode, decode_bigfont_unicode
+    
+    # Apply bigfont decoding for Asian text (e.g., Japanese Shift-JIS)
+    # This handles \U+xxxx sequences that represent bigfont characters
+    if has_dxf_unicode(text):
+        text = decode_bigfont_unicode(text)
+    
     # TEXT, ATTRIB and ATTDEF are short strings <= 255 in R12.
     # R2000 allows 2049 chars, but this limit is not often used in real world
     # applications.
     result = ""
     scanner = TextScanner(validator.fix_one_line_text(caret_decode(text)))
+
     while scanner.has_data:
         char = scanner.peek()
         if char == "%":  # special characters
@@ -441,6 +449,12 @@ def fast_plain_mtext(text: str, split=False) -> Union[list[str], str]:
 
     """
     chars = []
+    
+    # Apply bigfont decoding for Asian text
+    from ezdxf.lldxf.encoding import has_dxf_unicode, decode_bigfont_unicode
+    if has_dxf_unicode(text):
+        text = decode_bigfont_unicode(text)
+        
     # split text into chars, in reversed order for efficient pop()
     raw_chars = list(reversed(caret_decode(text)))
     # pylint: disable=too-many-nested-blocks
@@ -552,6 +566,10 @@ def plain_mtext(
         tabsize: count of replacement spaces for tabulators ``^I``
 
     """
+    from ezdxf.lldxf.encoding import has_dxf_unicode, decode_bigfont_unicode
+    if has_dxf_unicode(text):
+        text = decode_bigfont_unicode(text)
+        
     content: list[str] = []
     paragraph: list[str] = []
 
@@ -1261,6 +1279,12 @@ class MTextParser:
         if ctx is None:
             ctx = MTextContext()
         self.ctx = ctx
+        
+        # Apply bigfont decoding for Asian text
+        from ezdxf.lldxf.encoding import has_dxf_unicode, decode_bigfont_unicode
+        if has_dxf_unicode(content):
+            content = decode_bigfont_unicode(content)
+            
         self.scanner = TextScanner(caret_decode(content))
         self._ctx_stack: list[MTextContext] = []
         self._continue_stroke = False
