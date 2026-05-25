@@ -1,4 +1,4 @@
-# Copyright (c) 2022, Manfred Moitzi
+# Copyright (c) 2022-2026, Manfred Moitzi
 # License: MIT License
 # Immutable spatial search tree based on the SsTree implementation of the book
 # "Advanced Algorithms and Data Structures"
@@ -40,7 +40,7 @@ class Node(abc.ABC, Generic[T]):
 
     @abc.abstractmethod
     def _nearest_neighbor(
-        self, target: T, nn: T = None, nn_dist: float = INF
+        self, target: T, nn: T | None = None, nn_dist: float = INF
     ) -> tuple[T, float]: ...
 
     @abc.abstractmethod
@@ -70,7 +70,7 @@ class LeafNode(Node[T]):
         return any(point.isclose(p) for p in self.points)
 
     def _nearest_neighbor(
-        self, target: T, nn: T = None, nn_dist: float = INF
+        self, target: T, nn: T | None = None, nn_dist: float = INF
     ) -> tuple[T, float]:
         distance, point = min((target.distance(p), p) for p in self.points)
         if distance < nn_dist:
@@ -108,7 +108,7 @@ class InnerNode(Node[T]):
         return False
 
     def _nearest_neighbor(
-        self, target: T, nn: T = None, nn_dist: float = INF
+        self, target: T, nn: T | None = None, nn_dist: float = INF
     ) -> tuple[T, float]:
         closest_child = find_closest_child(self.children, target)
         nn, nn_dist = closest_child._nearest_neighbor(target, nn, nn_dist)
@@ -141,10 +141,10 @@ class RTree(Generic[T]):
 
     The search tree is buildup once at initialization and immutable afterwards,
     because rebuilding the tree after inserting or deleting nodes is very costly
-    and makes the implementation very complex.  
-    
-    Without the ability to alter the content the restrictions which forces the tree 
-    balance at growing and shrinking of the original `R-trees`_, are ignored, like the 
+    and makes the implementation very complex.
+
+    Without the ability to alter the content the restrictions which forces the tree
+    balance at growing and shrinking of the original `R-trees`_, are ignored, like the
     fixed minimum and maximum node size.
 
     This class uses internally only 3D bounding boxes, but also supports

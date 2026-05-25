@@ -2,6 +2,7 @@
 # License: MIT License
 from __future__ import annotations
 from typing import TYPE_CHECKING
+from typing_extensions import Self
 import abc
 
 if TYPE_CHECKING:
@@ -11,7 +12,7 @@ if TYPE_CHECKING:
 __all__ = ["TemporaryTransformation", "TransformByBlockReference"]
 
 
-class TemporaryTransformation:
+class TemporaryTransformation(abc.ABC):
     __slots__ = ("_matrix",)
 
     def __init__(self) -> None:
@@ -28,6 +29,9 @@ class TemporaryTransformation:
         if matrix is not None:
             m = matrix @ m
         self.set_matrix(m)
+
+    @abc.abstractmethod
+    def copy(self) -> Self: ...
 
     @abc.abstractmethod
     def apply_transformation(self, entity: DXFEntity) -> bool: ...
@@ -47,3 +51,8 @@ class TransformByBlockReference(TemporaryTransformation):
             self.set_matrix(None)
             return True
         return False
+
+    def copy(self) -> Self:
+        clone = self.__class__()
+        clone._matrix = self._matrix
+        return clone

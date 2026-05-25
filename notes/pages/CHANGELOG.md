@@ -1,4 +1,5 @@
-## Version 1.4.4 - dev
+## Version 1.4.4 - 2026-05-14
+id:: 6a01df82-ea1b-48c4-912f-6a80564d3288
 	- NEW: `ezdxf.entities.textstyle.get_textstyle()` function
 	- CHANGE: replace legacy `pyparsing` names and arguments by PEP8-compliant names
 		- requires `pyparsing >= 3.0.0` released in 2022!
@@ -21,6 +22,15 @@
 		- contributed by #enriqueav
 	- BUGFIX: handle loaded `TEXT` and `MTEXT` entities with a height of 0
 		- {{issue 1372}}
+	- BUGFIX: `xref` module now handles empty entities like `Polyline` in blocks correct
+		- {{issue 1377}}
+	- BUGFIX: `Body.copy_data()` copies `_temporary_transformation`
+		- {{issue 1374}}
+	- BUGFIX: decode CIF and MIF encoded strings including lower case characters like `\U+abcd`
+		- {{issue 1380}}
+	- BUGFIX: clipping logic in `UniversalFrontend`
+		- {{pr 1383}}
+		- contrbuted by #origami7
 - ## Version 1.4.3 - 2025-10-19
   id:: 68d646ab-d400-4b0f-8c2b-33a30ba1ecc5
 	- NEW: added deployment of Python 3.14 packages
@@ -40,6 +50,8 @@
 	- BUGFIX: draw `ATTRIB` entities of block references at last
 		- {{issue 1321}}
 		- contributed by #eXponenta
+	- BUGFIX: `Trace` rendering
+		- {{issue 1375}}
 - ## Version 1.4.2 - 2025-05-18
   id:: 68d646ab-6a15-4016-9cc2-feaad2ceb304
 	- CHANGE: faster and smaller PDF export by the `PyMuPDF` backend

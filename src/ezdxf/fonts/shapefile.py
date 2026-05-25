@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023, Manfred Moitzi
+#  Copyright (c) 2022-2026, Manfred Moitzi
 #  License: MIT License
 
 """
@@ -92,7 +92,7 @@ class FontMode(enum.IntEnum):
 NO_DATA: Sequence[int] = tuple()
 DEBUG = False
 DEBUG_CODES: Set[int] = set()
-DEBUG_SHAPE_NUMBERS = set()
+DEBUG_SHAPE_NUMBERS: Set[int] = set()
 ORD_NULL = ord("0")
 ORD_MINUS = ord("-")
 
@@ -385,7 +385,7 @@ class DataReader:
             if char:
                 data.append(char)
             else:
-                return data
+                return data  # type: ignore
 
     def read_bytes(self, n: int) -> bytes:
         index = self.index

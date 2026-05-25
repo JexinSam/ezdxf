@@ -913,11 +913,12 @@ class UniversalFrontend:
                 )
             )
 
-            if is_clipping_active and clip.get_xclip_frame_policy():
-                self.pipeline.draw_path(
-                    path=from_vertices(boundary_path.inner_polygon(), close=True),
-                    properties=properties,
-                )
+            if is_clipping_active:
+                if clip.get_xclip_frame_policy():
+                    self.pipeline.draw_path(
+                        path=from_vertices(boundary_path.inner_polygon(), close=True),
+                        properties=properties,
+                    )
                 self.pipeline.pop_clipping_shape()
 
             # Draw ATTRIB entities at last, see #1321

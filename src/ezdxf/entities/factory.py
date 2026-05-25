@@ -1,7 +1,7 @@
-# Copyright (c) 2019-2022, Manfred Moitzi
+# Copyright (c) 2019-2026, Manfred Moitzi
 # License: MIT License
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Type
 
 if TYPE_CHECKING:
     from ezdxf.document import Drawing
@@ -21,7 +21,7 @@ __all__ = [
     "bind",
 ]
 # Stores all registered classes:
-ENTITY_CLASSES = {}
+ENTITY_CLASSES: dict[str, Type[DXFEntity]] = {}
 # use @set_default_class to register the default entity class:
 DEFAULT_CLASS = None
 

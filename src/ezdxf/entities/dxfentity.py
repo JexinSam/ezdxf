@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024 Manfred Moitzi
+# Copyright (c) 2019-2026 Manfred Moitzi
 # License: MIT License
 """ :class:`DXFEntity` is the super class of all DXF entities.
 
@@ -87,12 +87,12 @@ T = TypeVar("T", bound="DXFEntity")
 class DXFEntity:
     """Common super class for all DXF entities."""
 
-    DXFTYPE = "DXFENTITY"  # storing as class var needs less memory
+    DXFTYPE = "DXFENTITY"
     DXFATTRIBS = DXFAttributes(base_class)  # DXF attribute definitions
 
     # Default DXF attributes are set at instantiating a new object, the
-    # difference to attribute default values is, that this attributes are
-    # really set, this means there is an real object in the dxf namespace
+    # difference to attribute default values is, that these attributes are
+    # really set, this means there is a real object in the dxf namespace
     # defined, where default attribute values get returned on access without
     # an existing object in the dxf namespace.
     DEFAULT_ATTRIBS: dict[str, Any] = {}

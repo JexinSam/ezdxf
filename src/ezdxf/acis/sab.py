@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2024, Manfred Moitzi
+#  Copyright (c) 2022-2026, Manfred Moitzi
 #  License: MIT License
 from __future__ import annotations
 from typing import (
@@ -374,7 +374,7 @@ def parse_sab(data: Union[bytes, bytearray]) -> SabBuilder:
     if not isinstance(data, (bytes, bytearray)):
         raise TypeError("expected bytes, bytearray")
     builder = SabBuilder()
-    decoder = Decoder(data)
+    decoder = Decoder(data)  # type: ignore
     builder.header = decoder.read_header()
     entities = list(
         build_entities(decoder.read_records(), builder.header.version)

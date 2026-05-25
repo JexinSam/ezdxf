@@ -5,13 +5,48 @@ import pytest
 import ezdxf
 from ezdxf.math import Vec2
 from ezdxf.addons.drawing import RenderContext, Frontend
+from ezdxf.addons.drawing.frontend import UniversalFrontend
 from ezdxf.addons.drawing.properties import BackendProperties, Properties
 
 from ezdxf.addons.drawing.backend import Backend, BkPath2d
 from ezdxf.addons.drawing.debug_backend import BasicBackend, PathBackend
+from ezdxf.addons.drawing.pipeline import RenderPipeline2d
 from ezdxf.entities import DXFGraphic
 from ezdxf.layouts import Modelspace
 from ezdxf.render.forms import cube
+from ezdxf import xclip
+
+
+class ClippingTrackingPipeline(RenderPipeline2d):
+    """Subclass of RenderPipeline2d that tracks push/pop clipping calls."""
+
+    def __init__(self, backend):
+        super().__init__(backend)
+        self.push_count = 0
+        self.pop_count = 0
+
+    def push_clipping_shape(self, shape, transform):
+        self.push_count += 1
+        super().push_clipping_shape(shape, transform)
+
+    def pop_clipping_shape(self):
+        self.pop_count += 1
+        super().pop_clipping_shape()
+
+
+class ClippingTestFrontend(Frontend):
+    """Frontend using ClippingTrackingPipeline for testing push/pop balance."""
+
+    def __init__(self, ctx, backend):
+        pipeline = ClippingTrackingPipeline(backend)
+        # Call UniversalFrontend.__init__ directly to bypass Frontend.__init__
+        # which would create a plain RenderPipeline2d, overwriting our tracking one.
+        UniversalFrontend.__init__(self, ctx, pipeline)
+        self.out = backend
+
+    @property
+    def stack_depth(self) -> int:
+        return self.pipeline.clipping_portal.stack_depth
 
 
 class MyTestFrontend(Frontend):
@@ -434,6 +469,105 @@ def test_property_override_method(msp: Modelspace, ctx: RenderContext, override)
     result = collector[8]
     assert result[0] == "filled_polygon"
     assert result[2].layer == "T2"
+
+
+# =============================================================================
+# INSERT clipping stack balance tests
+# =============================================================================
+
+def _make_block_with_line(doc, name: str, line_end: tuple) -> str:
+    """Create a named block containing a single line."""
+    blk = doc.blocks.new(name)
+    blk.add_line((0, 0), line_end)
+    return name
+
+
+def test_insert_clipping_push_pop_balanced_when_frame_policy_true(doc, ctx):
+    """push/pop must be balanced even when get_xclip_frame_policy() returns True."""
+    blk_name = _make_block_with_line(doc, "CLIP_BLK", (10, 10))
+    msp = doc.modelspace()
+    insert = msp.add_blockref(blk_name, (0, 0))
+    xclip.XClip(insert).set_block_clipping_path([(-1, -1), (2, 2)])
+
+    # Ensure frame policy is True (XCLIPFRAME = 1 or 2 means frame shown)
+    doc.header["$XCLIPFRAME"] = 2
+
+    frontend = ClippingTestFrontend(ctx, BasicBackend())
+    frontend.draw_entities(msp)
+
+    assert frontend.pipeline.push_count == 1
+    assert frontend.pipeline.pop_count == 1
+    assert frontend.stack_depth == 0, (
+        f"stack leak: depth={frontend.stack_depth}, "
+        f"push={frontend.pipeline.push_count}, pop={frontend.pipeline.pop_count}"
+    )
+
+
+def test_insert_clipping_push_pop_balanced_when_frame_policy_false(doc, ctx):
+    """push/pop must be balanced when get_xclip_frame_policy() returns False.
+
+    This is the critical regression test: with $XCLIPFRAME = 0, draw_path() for
+    the frame is skipped but pop_clipping_shape() must still be called.
+    """
+    blk_name = _make_block_with_line(doc, "CLIP_BLK2", (10, 10))
+    msp = doc.modelspace()
+    insert = msp.add_blockref(blk_name, (0, 0))
+    xclip.XClip(insert).set_block_clipping_path([(-1, -1), (2, 2)])
+
+    # XCLIPFRAME = 0 means the clipping boundary frame is hidden
+    doc.header["$XCLIPFRAME"] = 0
+
+    frontend = ClippingTestFrontend(ctx, BasicBackend())
+    frontend.draw_entities(msp)
+
+    assert frontend.pipeline.push_count == 1
+    assert frontend.pipeline.pop_count == 1
+    assert frontend.stack_depth == 0, (
+        f"stack leak: depth={frontend.stack_depth}, "
+        f"push={frontend.pipeline.push_count}, pop={frontend.pipeline.pop_count}"
+    )
+
+
+def test_insert_no_clipping_nothing_pushed(doc, ctx):
+    """INSERT without XCLIP must not push or pop anything."""
+    blk_name = _make_block_with_line(doc, "NO_CLIP_BLK", (10, 10))
+    msp = doc.modelspace()
+    msp.add_blockref(blk_name, (0, 0))
+
+    frontend = ClippingTestFrontend(ctx, BasicBackend())
+    frontend.draw_entities(msp)
+
+    assert frontend.pipeline.push_count == 0
+    assert frontend.pipeline.pop_count == 0
+    assert frontend.stack_depth == 0
+
+
+def test_insert_nested_clipping_stacks_balanced(doc, ctx):
+    """Nested INSERTs with clipping must keep the stack balanced."""
+    inner_blk = _make_block_with_line(doc, "INNER_BLK", (5, 5))
+    doc.blocks.new("OUTER_BLK").add_blockref(inner_blk, (0, 0))
+
+    msp = doc.modelspace()
+    outer_insert = msp.add_blockref("OUTER_BLK", (0, 0))
+
+    xclip.XClip(outer_insert).set_block_clipping_path([(-2, -2), (20, 20)])
+
+    # The inner INSERT is inside the OUTER_BLK block definition, so we need
+    # to add clipping to all nested INSERTs in that block
+    for e in doc.blocks["OUTER_BLK"]:
+        if e.dxftype() == "INSERT" and e.dxf.name == inner_blk:
+            xclip.XClip(e).set_block_clipping_path([(-1, -1), (6, 6)])
+
+    doc.header["$XCLIPFRAME"] = 0
+
+    frontend = ClippingTestFrontend(ctx, BasicBackend())
+    frontend.draw_entities(msp)
+
+    assert frontend.pipeline.push_count == 2
+    assert frontend.pipeline.pop_count == 2
+    assert frontend.stack_depth == 0, (
+        f"stack leak: depth={frontend.stack_depth}"
+    )
 
 
 if __name__ == "__main__":

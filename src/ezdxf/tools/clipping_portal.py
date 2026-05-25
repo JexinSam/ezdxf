@@ -114,6 +114,11 @@ class ClippingPortal:
     def is_active(self) -> bool:
         return bool(self._stages)
 
+    @property
+    def stack_depth(self) -> int:
+        """Number of clipping stages currently on the stack. Used for testing."""
+        return len(self._stages)
+
     def push(self, portal: ClippingShape, transform: Matrix44 | None) -> None:
         self._stages.append(ClippingStage(portal, transform))
 

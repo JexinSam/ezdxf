@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2024, Manfred Moitzi
+# Copyright (c) 2018-2026, Manfred Moitzi
 # License: MIT License
 from __future__ import annotations
 from typing import Any, TextIO, TYPE_CHECKING, Union, Iterable, BinaryIO
@@ -25,7 +25,7 @@ __all__ = [
 CRLF = b"\r\n"
 
 
-class AbstractTagWriter:
+class AbstractTagWriter(abc.ABC):
     # Options for functions using an inherited class for DXF export:
     dxfversion = LATEST_DXF_VERSION
     write_handles = True

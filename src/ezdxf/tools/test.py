@@ -1,4 +1,4 @@
-# Copyright (c) 2011-2022, Manfred Moitzi
+# Copyright (c) 2011-2026, Manfred Moitzi
 # License: MIT License
 from __future__ import annotations
 from typing import Sequence, TYPE_CHECKING, Iterable
@@ -47,4 +47,4 @@ def parse_hex_dump(txt: str) -> bytes:
         data = [int(v, 16) for v in line.strip().split(" ")]
         assert data[0] == len(b)
         b.extend(data[1:])
-    return b
+    return b  # type: ignore
