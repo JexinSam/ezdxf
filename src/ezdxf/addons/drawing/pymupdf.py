@@ -246,6 +246,7 @@ class PyMuPdfRenderBackend(BackendInterface):
         self.page = self.doc.new_page(-1, self.page_width_in_pt, self.page_height_in_pt)
         # The page content is stored in a shared shape:
         self.content_shape = self.page.new_shape()
+        self._content_buffer: list[str] = []
         # see also: https://github.com/pymupdf/PyMuPDF/issues/3800
         
     def get_pdf_bytes(self) -> bytes:
@@ -303,6 +304,8 @@ class PyMuPdfRenderBackend(BackendInterface):
         if "{lineJoin}" in shape.totalcont:
             val = kwargs.get("lineJoin", kwargs.get("linejoin", 1))
             shape.totalcont = shape.totalcont.replace("{lineJoin} j\n", f"{val} j\n")
+            
+        self.commit_buffer()
 
     def finish_filling(self, shape, properties: BackendProperties) -> None:
         kwargs = {
@@ -326,6 +329,8 @@ class PyMuPdfRenderBackend(BackendInterface):
         if "{lineJoin}" in shape.totalcont:
             val = kwargs.get("lineJoin", kwargs.get("linejoin", 1))
             shape.totalcont = shape.totalcont.replace("{lineJoin} j\n", f"{val} j\n")
+            
+        self.commit_buffer()
 
     def resolve_color(self, color: Color) -> tuple[float, float, float]:
         key = color[:7]
@@ -370,8 +375,27 @@ class PyMuPdfRenderBackend(BackendInterface):
         self, lines: Iterable[tuple[Vec2, Vec2]], properties: BackendProperties
     ) -> None:
         shape = self.content_shape
+        
+        # Batch continuous segments into polylines
+        polyline = []
         for start, end in lines:
-            shape.draw_line(start, end)
+            if not polyline:
+                polyline.extend([(start.x, start.y), (end.x, end.y)])
+            elif start.isclose(polyline[-1]):  # polyline[-1] is now a tuple, but start.isclose works with tuples
+                polyline.append((end.x, end.y))
+            else:
+                if len(polyline) > 2:
+                    shape.draw_polyline(polyline)
+                else:
+                    shape.draw_line(polyline[0], polyline[1])
+                polyline = [(start.x, start.y), (end.x, end.y)]
+                
+        if polyline:
+            if len(polyline) > 2:
+                shape.draw_polyline(polyline)
+            else:
+                shape.draw_line(polyline[0], polyline[1])
+                
         self.finish_line(shape, properties, close=False)
 
     def draw_path(self, path: BkPath2d, properties: BackendProperties) -> None:
@@ -460,7 +484,16 @@ class PyMuPdfRenderBackend(BackendInterface):
     def clear(self) -> None:
         pass
 
+    def commit_buffer(self) -> None:
+        """Buffers the current shape commands to avoid PyMuPDF's quadratic 
+        slowdown on repeated shape.commit() calls to the same page."""
+        self._content_buffer.append(self.content_shape.totalcont)
+        self.content_shape.totalcont = ""
+
     def finalize(self) -> None:
+        if self._content_buffer:
+            self.commit_buffer()
+            self.content_shape.totalcont = "".join(self._content_buffer)
         self.content_shape.commit()
 
     def enter_entity(self, entity, properties) -> None:

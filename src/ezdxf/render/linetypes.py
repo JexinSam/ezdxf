@@ -15,7 +15,17 @@ if ezdxf.options.use_c_ext:
 class LineTypeRenderer(_LineTypeRenderer):
     def line_segments(self, vertices: Iterable[UVec]) -> Iterator[LineSegment]:
         last = None
-        for vertex in vertices:
+        count = 0
+        limit = 10000
+        vertices_list = list(vertices)
+        
+        for vertex in vertices_list:
             if last is not None:
-                yield from self.line_segment(last, vertex)
+                for s, e in self.line_segment(last, vertex):
+                    yield s, e
+                    count += 1
+                    if count >= limit:
+                        # Fallback: connect to the end and stop
+                        yield e, vertices_list[-1]
+                        return
             last = vertex
