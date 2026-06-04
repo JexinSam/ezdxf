@@ -32,6 +32,16 @@ except ImportError:
     is_pymupdf_installed = False
 # PyMuPDF docs: https://pymupdf.readthedocs.io/en/latest/
 
+import inspect
+
+_FINISH_ARGS_CAMEL_CASE = True
+if is_pymupdf_installed:
+    try:
+        _sig = inspect.signature(pymupdf.Shape.finish)
+        _FINISH_ARGS_CAMEL_CASE = "lineJoin" in _sig.parameters
+    except Exception:
+        pass
+
 __all__ = ["PyMuPdfBackend", "is_pymupdf_installed"]
 
 # PDF units are points (pt), 1 pt is 1/72 of an inch:
@@ -272,29 +282,50 @@ class PyMuPdfRenderBackend(BackendInterface):
     def finish_line(self, shape, properties: BackendProperties, close: bool) -> None:
         color = self.resolve_color(properties.color)
         width = self.resolve_stroke_width(properties.lineweight)
-        shape.finish(
-            width=width,
-            color=color,
-            fill=None,
-            lineJoin=1,
-            lineCap=1,
-            stroke_opacity=alpha_to_opacity(properties.color[7:9]),
-            closePath=close,
-            oc=self.get_optional_content_group(properties.layer),
-        )
+        kwargs = {
+            "width": width,
+            "color": color,
+            "fill": None,
+            "stroke_opacity": alpha_to_opacity(properties.color[7:9]),
+            "closePath": close,
+            "oc": self.get_optional_content_group(properties.layer),
+        }
+        if _FINISH_ARGS_CAMEL_CASE:
+            kwargs["lineJoin"] = 1
+            kwargs["lineCap"] = 1
+        else:
+            kwargs["linejoin"] = 1
+            kwargs["linecap"] = 1
+        
+        shape.finish(**kwargs)
+        # WORKAROUND for PyMuPDF bug (e.g. in 1.27.x) where lineJoin is incorrectly formatted
+        # as the literal string "{lineJoin} j" instead of the actual value.
+        if "{lineJoin}" in shape.totalcont:
+            val = kwargs.get("lineJoin", kwargs.get("linejoin", 1))
+            shape.totalcont = shape.totalcont.replace("{lineJoin} j\n", f"{val} j\n")
 
     def finish_filling(self, shape, properties: BackendProperties) -> None:
-        shape.finish(
-            width=None,
-            color=None,
-            fill=self.resolve_color(properties.color),
-            fill_opacity=alpha_to_opacity(properties.color[7:9]),
-            lineJoin=1,
-            lineCap=1,
-            closePath=True,
-            even_odd=True,
-            oc=self.get_optional_content_group(properties.layer),
-        )
+        kwargs = {
+            "width": None,
+            "color": None,
+            "fill": self.resolve_color(properties.color),
+            "fill_opacity": alpha_to_opacity(properties.color[7:9]),
+            "closePath": True,
+            "even_odd": True,
+            "oc": self.get_optional_content_group(properties.layer),
+        }
+        if _FINISH_ARGS_CAMEL_CASE:
+            kwargs["lineJoin"] = 1
+            kwargs["lineCap"] = 1
+        else:
+            kwargs["linejoin"] = 1
+            kwargs["linecap"] = 1
+        shape.finish(**kwargs)
+        # WORKAROUND for PyMuPDF bug (e.g. in 1.27.x) where lineJoin is incorrectly formatted
+        # as the literal string "{lineJoin} j" instead of the actual value.
+        if "{lineJoin}" in shape.totalcont:
+            val = kwargs.get("lineJoin", kwargs.get("linejoin", 1))
+            shape.totalcont = shape.totalcont.replace("{lineJoin} j\n", f"{val} j\n")
 
     def resolve_color(self, color: Color) -> tuple[float, float, float]:
         key = color[:7]
