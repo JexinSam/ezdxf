@@ -299,6 +299,12 @@ class PyMuPdfRenderBackend(BackendInterface):
             kwargs["linecap"] = 1
         
         shape.finish(**kwargs)
+        # WORKAROUND for PyMuPDF bug (e.g. in 1.27.x) where lineJoin is incorrectly formatted
+        # as the literal string "{lineJoin} j" instead of the actual value.
+        if "{lineJoin}" in shape.totalcont:
+            val = kwargs.get("lineJoin", kwargs.get("linejoin", 1))
+            shape.totalcont = shape.totalcont.replace("{lineJoin} j\n", f"{val} j\n")
+            
         self.commit_buffer()
 
     def finish_filling(self, shape, properties: BackendProperties) -> None:
@@ -317,8 +323,13 @@ class PyMuPdfRenderBackend(BackendInterface):
         else:
             kwargs["linejoin"] = 1
             kwargs["linecap"] = 1
-            
         shape.finish(**kwargs)
+        # WORKAROUND for PyMuPDF bug (e.g. in 1.27.x) where lineJoin is incorrectly formatted
+        # as the literal string "{lineJoin} j" instead of the actual value.
+        if "{lineJoin}" in shape.totalcont:
+            val = kwargs.get("lineJoin", kwargs.get("linejoin", 1))
+            shape.totalcont = shape.totalcont.replace("{lineJoin} j\n", f"{val} j\n")
+            
         self.commit_buffer()
 
     def resolve_color(self, color: Color) -> tuple[float, float, float]:
